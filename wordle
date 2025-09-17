@@ -203,26 +203,6 @@ prnallow(){
 printf %s "$tput0"
 }
 
-prncolor() {
-  local arr
-  # read from stdin if no args
-  if [[ $# -eq 0 ]]; then
-    mapfile -t arr
-  else
-    arr=("$@")
-  fi
-
-  for i in "${arr[@]}"; do
-    if [[ "${pattern[*]}" != *"$i"* ]]; then
-      yellow+=( "$i" )
-      printf '%s ' "$yel$i"
-    else
-      printf '%s ' "$gre$i"
-    fi
-  done
-  printf '%s\n' "$tput0"
-}
-
 prncolor(){
   while read -r w; do
     local out=""
@@ -269,64 +249,6 @@ valid() {
 
     return 0
 }
-
-searchdic() {
-  local ans
-  local dics=( /usr/share/dict/american-english )
-  ## assumes that /usr/share/dict/american-english = /usr/share/dict/words
-
-  local moredics=( /usr/share/dict/american-english-huge
-                  /usr/share/dict/american-english-missing
-                )
-
-  ## remove unreadable entries
-  for i in "${!moredics[@]}"; do
-    [[ ! -r "${moredics[$i]}" ]] && unset moredics[i]
-  done
-  ## compact array to remove holes
-  moredics=( "${moredics[@]}" )
-
-  (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
-
-  (( more  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
-                                       dics=( "${moredics[@]}" ); }
-
-  (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
-
-  while ! (( ${#newguesses[@]} )); do
-    for dic in "${dics[@]}"; do
-      (( verbose )) && printf 'Searching dictionary: %s\n' "$dic" >&2
-      if [[ -r "$dic" ]]; then
-        readarray -t newguesses < <(
-          while read -r w; do
-            (( lower )) && [[ "$w" =~ [A-Z] ]] && continue
-            w="${w^^}" # uppercase
-            valid "$w" && [[ "$w" != *\'* ]] && printf '%s\n' "$w"
-          done < "$dic"
-        )
-        (( ${#newguesses[@]} )) && return 0
-      fi
-    done
-    (( more )) &&  ## if $more=1 then "${dics[@]}" already had "$moredics" on first run
-       break       ## (the dic jokes write themselves)
-
-    # nothing found, ask about more
-    if (( "${#moredics[@]}" )); then
-      while ! { (( more )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
-        printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
-        read -rp "Search expanded dictionaries? [Y/n] " ans
-        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && more=2
-      done
-      [[ "$ans" =~ [nN] ]] && break 2
-      if (( more )); then
-         printf '\nSearching additional dictionary/dictionaries:\n%s\n\n' "$(printf \ %s\\n "${moredics[@]}")"
-        dics=( "${moredics[@]}" )  ## we've already searched what was in "${dic[@]}" once, remove them
-      fi
-    fi
-  done
-}
-
-
 
 searchdic(){
   local ans
@@ -624,23 +546,14 @@ gscunt="${#newguesses[@]}"
 newguesses=( "${newguesses[@]^^}" )
 if (( choose && gscunt > 1 )); then
   printf '\nCandidate list:\n%s\n\n' "$(printf '  %s\n' "${newguesses[@]}"|prncolor)"
-# choice="$(gum choose "${newguesses[@]}")"
-##  read -rp "$choice ${#newguesses[@]} ${newguesses[*]}"
-#  newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor)" )
-#  newguesses=( "$(gum choose --height=0 --cursor.foreground="11" --selected.foreground="76" "${newguesses[@]}")" ) || exit
     newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --header="Select from candidates:" --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
     [[ "$newguesses" = "user aborted" ]] && exit 130
-# newguesses=( "$(gum choose "$(printf %s\\n "${newguesses[@]}"|prncolor)")" )
-# newguesses=( "$choice" )
-##  read -rp "$choice ${#newguesses[@]} ${newguesses[*]}"
   gscunt="${#newguesses[@]}"
 
 else
   printf %s\\n "${newguesses[@]}"|prncolor
 fi
-#(( count )) && printf 'The number of possible words is %s.\n' "${#newguesses[@]}"
 (( choose && ${#newguesses[@]} == 1 )) && printf '\nThe selected word: %s%s\n' "$(printf %s\\n "$newguesses"|prncolor)" "$tput0" ||
-#(( choose )) && printf 'The selected word: %s%s%s\n' "$red" "$newguesses" "$tput0" ||
                 printf 'The number of possible words is %s.\n' "$gscunt"
 (( verbose )) && printf 'new guesses: .%s.\n' "${newguesses[@]}"|tail -n 40
 (( verbose && gscunt > 40 )) && printf 'NB: list of .guesses. truncated at 40\n'
@@ -652,7 +565,6 @@ if (( gscunt == 1 )); then
     (( lower )) && execcmd+=( --lower )
     (( more == 1 )) && execcmd+=( --more )
     (( choose )) && execcmd+=( --choose )
-#    exec "$0" -n "${guesses[@]}"
    printf '\n\nNew guess count is 1.\nRESTARTING %s with additional guess %s%s%s\n\n' "$0" "$red" "$newguesses" "$tput0"
     exec "${execcmd[@]}"
   fi
