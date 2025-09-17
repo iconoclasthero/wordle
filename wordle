@@ -519,6 +519,14 @@ while (( $# )); do
  { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
 done
 
+(( choose )) && { ! command -v gum >/dev/null 2>&1 && unset choose &&
+                  printf '--choose flag selected but gum not installed thus menu unavailable.\n'; }
+
+#(( recycle )) && { (( noguess )) || ! (( choose )) ; } &&
+#  { unset recycle; printf '--recycle flag selected but without new guesses or choose available.\n'
+#                   printf 'The recycle option will be disabled.\n'; }
+
+
 ! (( noguess )) && { guessedwords "Enter space-delimited guesses:" || exit; }
 
 usedletters
@@ -533,11 +541,11 @@ fi
 calcbanned
 
 (( verbose )) && {
-printf 'Guessed letters (${gl[@]}):\n'
-printf %s\\n "${gl[*]}"
-printf 'Allowed letters (${allowed[*]}):\n %s\n' "${allowed[*]}"
-printf 'Banned letters ($[banned[*]}):\n %s\n' "${banned[*]}"
-read -rp "--pause--"
+  printf 'Guessed letters (${gl[@]}):\n'
+  printf %s\\n "${gl[*]}"
+  printf 'Allowed letters (${allowed[*]}):\n %s\n' "${allowed[*]}"
+  printf 'Banned letters ($[banned[*]}):\n %s\n' "${banned[*]}"
+  read -rp "--pause--"
 }
 
 # pattern; green letters (use _ for unknowns)
@@ -553,28 +561,18 @@ calcyellow
 printf 'Disallowed positions: %s\n' "${yellowb[*]}"
 
 printf 'Guessed words: %s\n' "${guesses[*]}"|prncolor
-#printf 'Pattern: %s\n' "${pattern[*]}"
 printf 'Pattern: '
 for i in "${pattern[@]}"; do
    [[ "$i" =~ [[:alpha:]] ]] && printf %s%s%s\  "$gre" "$i" "$tput0" || printf %s\  "$i"
 done
 printf \\n
 
-#printf 'Allowed letters: %s\n' "${allowed[*]}"
 printf 'Allowed letters: %s\n' "$(prnallow)"
 
 (( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
-# yellow letters with forbidden positions
-# format: letter:positions (1-based comma-separated)
-#yellow=("S:1" "A:2" "P:3")
-#yellow=("N:4")
 
 # banned letters
 banned=( "${banned[@]^^}" )
-
-# function to check if word passes constraints
-
-#filterwords /usr/share/dict/words
 
 searchdic
 readarray -t newguesses < <(printf '%s\n' "${newguesses[@]}" | sed '/^$/d' | sort -u)
@@ -620,10 +618,3 @@ if (( gscunt == 1 )); then
 fi
 
 exit
-
-
-
-
-
-
-
