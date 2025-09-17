@@ -24,6 +24,37 @@ chgshopt(){
   (( setting )) && shopt -s "$opt" || shopt -u "$opt"
 }
 
+showhelp() {
+  cat <<EOF
+Usage: wordle [OPTIONS] [GUESSES...]
+
+Options:
+  -m, --more, --huge         Always larger/additional dictionaries (defined by \$moredics in script)
+  -l, --lower                Match only lowercase words in dictionaries (default behavior)
+  -u, --upper                Match words containing uppercase letters in dictionaries
+  -n, --noguess              Skip entering a new guess
+  -r, --recycle              Reuse a single result from last run
+  -c, --choose               Interactive candidate picker (requires gum choose)
+  -h, --help                 Show this message and exit
+  [GUESSES...]               One or more 5-letter words to seed guesses
+
+Examples:
+  wordle
+  wordle -u
+  wordle CRANE
+  wordle -r -c
+
+Usage:
+  ${gre}Green${tput0}/${yel}allowed${tput0} letters and pattern are case insenstive.
+  Specify double/triple letters by prefixing letter with 2/3, e.g., 2t2eh will result in
+  a dictionary search requiring "TTEEH" **all** be included in the word > "TEETH" results.
+
+EOF
+
+exit
+
+}
+
 guessedwords(){
   local prompt="${1:-Enter guesses (space-delimited):}";
   local input;
@@ -246,7 +277,7 @@ searchdic() {
 
   (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
 
-  (( huge  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
+  (( more  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
                                        dics=( "${moredics[@]}" ); }
 
   (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
@@ -265,18 +296,18 @@ searchdic() {
         (( ${#newguesses[@]} )) && return 0
       fi
     done
-    (( huge )) &&  ## if $huge=1 then "${dics[@]}" already had "$moredics" on first run
+    (( more )) &&  ## if $more=1 then "${dics[@]}" already had "$moredics" on first run
        break       ## (the dic jokes write themselves)
 
-    # nothing found, ask about huge
+    # nothing found, ask about more
     if (( "${#moredics[@]}" )); then
-      while ! { (( huge )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
+      while ! { (( more )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
         printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
         read -rp "Search expanded dictionaries? [Y/n] " ans
-        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && huge=2
+        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && more=2
       done
       [[ "$ans" =~ [nN] ]] && break 2
-      if (( huge )); then
+      if (( more )); then
          printf '\nSearching additional dictionary/dictionaries:\n%s\n\n' "$(printf \ %s\\n "${moredics[@]}")"
         dics=( "${moredics[@]}" )  ## we've already searched what was in "${dic[@]}" once, remove them
       fi
@@ -298,7 +329,7 @@ searchdic(){
 
   (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
 
-  (( huge  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
+  (( more  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
                                        dics=( "${moredics[@]}" ); }
 
   (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
@@ -313,18 +344,18 @@ searchdic(){
         (( ${#newguesses[@]} )) && return 0
       fi
     done
-    (( huge )) &&  ## if $huge=1 then "${dics[@]}" already had "$moredics" on first run
+    (( more )) &&  ## if $more=1 then "${dics[@]}" already had "$moredics" on first run
        break       ## (the dic jokes write themselves)
 
-    # nothing found, ask about huge
+    # nothing found, ask about more
     if (( "${#moredics[@]}" )); then
-      while ! { (( huge )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
+      while ! { (( more )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
         printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
         read -rp "Search expanded dictionaries? [Y/n] " ans
-        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && huge=2
+        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && more=2
       done
       [[ "$ans" =~ [nN] ]] && break 2
-      if (( huge )); then
+      if (( more )); then
          printf '\nSearching additional dictionary/dictionaries:\n%s\n\n' "$(printf \ %s\\n "${moredics[@]}")"
         dics=( "${moredics[@]}" )  ## we've already searched what was in "${dic[@]}" once, remove them
       fi
@@ -509,13 +540,14 @@ while (( $# )); do
  [[ "$1" =~ ^-[a-zA-Z0-9]{2,}$ ]] && { one="-${1:1:1}" two="-${1:2}" && therest=( "${@:2}" )
                                  set -- "$one" "$two" "${therest[@]}"; }
 # [[ "$1" = @(-c|--count) ]] && { count=1; shift; continue; }
- [[ "$1" = @(-m|--more|-h|--huge) ]] && { huge=1; shift; continue; }  #default to using moredics
+ [[ "$1" = @(-m|--more|--huge) ]] && { more=1; shift; continue; }  #default to using moredics
  [[ "$1" =~ ^[a-Z]{5}$ ]] && { guesses+=( "${1^^}" ); shift; continue; }
  [[ "$1" = @(-l|--lower) ]] && { lower=1; shift; continue; }  #default behavior, remove cli option?
  [[ "$1" = @(-u|--upper) ]] && { upper=1; shift; continue; }
  [[ "$1" = @(-n|--noguess) ]] && { noguess=1; shift; continue; }
  [[ "$1" = @(-r|--recycle) ]] && { recycle=1; shift; continue; }
  [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
+ [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
  { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
 done
 
@@ -609,7 +641,7 @@ if (( gscunt == 1 )); then
     guesses+=( "$newguesses" )
     execcmd=( "$0" -n -r "${guesses[@]}" )
     (( lower )) && execcmd+=( --lower )
-    (( huge == 1 )) && execcmd+=( --huge )
+    (( more == 1 )) && execcmd+=( --more )
     (( choose )) && execcmd+=( --choose )
 #    exec "$0" -n "${guesses[@]}"
    printf '\n\nNew guess count is 1.\nRESTARTING %s with additional guess %s%s%s\n\n' "$0" "$red" "$newguesses" "$tput0"
