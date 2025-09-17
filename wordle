@@ -92,7 +92,7 @@ getallowed(){
   local input
   input=$(gum input --width=0 --prompt "$prompt ") || exit
   input="${input^^}"
-  [[ "$input" = "QUIT!" ]] && { printf 'Exiting per user signal "QUIT!"\n'; exit 130; }
+  [[ "$input" = @("!QUIT"|"QUIT!") ]] && { printf 'Exiting per user signal "%s"\n' "$input"; exit 130; }
   input="${input//[^A-Z23]}"
 
   for ((i=0; i<${#input}; i++)); do
@@ -560,6 +560,7 @@ while (( $# )); do
  [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
  [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
  [[ "$1" = @(-d|--defalut@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
+ [[ "$1" = @(-v|--verbose) ]] && { verbose=1; shift; continue; }
  { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
 done
 
@@ -602,8 +603,6 @@ fi
 
 calcyellow
 
-printf 'Disallowed positions: %s\n' "${yellowb[*]}"
-
 printf 'Guessed words: %s\n' "${guesses[*]}"|prncolor
 printf 'Pattern: '
 for i in "${pattern[@]}"; do
@@ -612,6 +611,7 @@ done
 printf \\n
 
 printf 'Allowed letters: %s\n' "$(prnallow)"
+printf 'Disallowed positions: %s\n' "${yellowb[*]}"
 
 (( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
 
@@ -626,12 +626,12 @@ gscunt="${#newguesses[@]}"
 
 newguesses=( "${newguesses[@]^^}" )
 if (( choose && gscunt > 1 )); then
-  printf %s\\n "${newguesses[@]}"|prncolor
+  printf '\nCandidate list:\n%s\n\n' "$(printf '  %s\n' "${newguesses[@]}"|prncolor)"
 # choice="$(gum choose "${newguesses[@]}")"
 ##  read -rp "$choice ${#newguesses[@]} ${newguesses[*]}"
 #  newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor)" )
 #  newguesses=( "$(gum choose --height=0 --cursor.foreground="11" --selected.foreground="76" "${newguesses[@]}")" ) || exit
-    newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
+    newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --header="Select from candidates:" --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
     [[ "$newguesses" = "user aborted" ]] && exit 130
 # newguesses=( "$(gum choose "$(printf %s\\n "${newguesses[@]}"|prncolor)")" )
 # newguesses=( "$choice" )
@@ -642,7 +642,7 @@ else
   printf %s\\n "${newguesses[@]}"|prncolor
 fi
 #(( count )) && printf 'The number of possible words is %s.\n' "${#newguesses[@]}"
-(( choose && ${#newguesses[@]} == 1 )) && printf 'The selected word: %s%s\n' "$(printf %s\\n "$newguesses"|prncolor)" "$tput0" ||
+(( choose && ${#newguesses[@]} == 1 )) && printf '\nThe selected word: %s%s\n' "$(printf %s\\n "$newguesses"|prncolor)" "$tput0" ||
 #(( choose )) && printf 'The selected word: %s%s%s\n' "$red" "$newguesses" "$tput0" ||
                 printf 'The number of possible words is %s.\n' "$gscunt"
 (( verbose )) && printf 'new guesses: .%s.\n' "${newguesses[@]}"|tail -n 40
