@@ -423,14 +423,6 @@ filterwords() {
   (( verbose )) && echo "\$renum=$renum; \$rechr=$rechr; \$candidates:" >&2
   (( verbose )) && echo "$candidates" >&2
 
-#  if (( renum == 2 )); then
-##    candidates=$(printf '%s\n' "$candidates" | grep -E -- "${rechr,,}{${renum}}")
-#    candidates=$(printf '%s\n' "$candidates" | grep -E -- .*"${rechr,,}".*"${rechr,,}".*)
-#  elif (( renum == 3 )); then
-#    echo "in renum==3" >&2
-#    candidates=$(printf '%s\n' "$candidates" | grep -E -- .+?"${rechr,,}".+?"${rechr,,}".+?"${rechr,,}".+? )
-#  fi
-
   if (( renum > 1 )); then
     pat="[$letters]*"
     for ((i=0; i<renum; i++)); do
