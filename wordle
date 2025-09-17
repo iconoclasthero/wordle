@@ -196,6 +196,7 @@ qsort() {
   sort -n | cut -d" " -f2
 }
 
+## want to remove this as prncolor() should be able to do all required
 prnallow(){
  for i in "${allowed[@]}"; do
   [[ "${pattern[*]}" != *"$i"* ]] && yellow+=( "$i" ) && printf %s%s\  "$yel" "$i" || printf %s%s\  "$gre" "$i"
@@ -533,7 +534,8 @@ printf \\n
 
 banned=( "${banned[@]^^}" )
 
-printf 'Allowed letters: %s\n' "$(prnallow)"
+#printf 'Allowed letters: %s\n' "$(prnallow)"  ## want to remove prnallowe()
+printf 'Allowed letters: %s\n' "$(printf %s\\n "${allowed[*]}"|prncolor)"
 (( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
 printf 'Disallowed positions: %s\n' "${yellowb[*]}"
 
