@@ -1,0 +1,629 @@
+#!/bin/bash
+
+red="$(tput setaf 9)"
+gre="$(tput setaf 76)"
+yel="$(tput setaf 11)"
+ltgr="$(tput setaf 7)"
+tput0="$(tput sgr0)"
+#dic="/usr/share/dict/words"
+dics=( /usr/share/dict/american-english )
+ ## assumes that /usr/share/dict/american-english = /usr/share/dict/words
+moredics=( /usr/share/dict/american-english-huge
+           /usr/share/dict/american-english-missing   ## assumes this is user-specified-words dictionary
+          )
+
+. /usr/local/bin/editscript
+
+chgshopt(){
+  local opt="$1"
+  local setting="$2"
+  [[ "$setting" = on ]] && setting=1
+  [[ "$setting" = off ]] && setting=0
+  [[ "$setting" =~ ^(on|off|0|1)$ ]] || echo "Error with chgshopt()" && exit
+  shopt "$opt" >/dev/null && optprev=1 || optprev=0
+  (( setting )) && shopt -s "$opt" || shopt -u "$opt"
+}
+
+guessedwords(){
+  local prompt="${1:-Enter guesses (space-delimited):}";
+  local input;
+  input=$(gum input --width=0 --prompt "$prompt ") || exit
+  read -r -a temp <<< "${input^^}"
+  guesses+=( "${temp[@]}" )
+  for (( i=0; i<"${#guesses[@]}"; i++ )); do
+    [[ "${guesses[$i]}" =~ ^[[:alpha:]]{5}$ ]] || unset guesses[i]
+  done
+}
+
+usedletters(){
+  local guessedletters="$(printf %s "${guesses[@]}")"
+  gl=()
+  for ((i=0; i<${#guessedletters}; i++)); do
+    gl+=( "${guessedletters:i:1}" )
+  done
+  # sort unique
+  readarray -t gl < <(printf "%s\n" "${gl[@]}" | sort -u)
+}
+
+getallowed(){
+  local prompt="$1"
+  local input
+  input=$(gum input --width=0 --prompt "$prompt ") || exit
+  input="${input^^}"
+  [[ "$input" = "QUIT!" ]] && { printf 'Exiting per user signal "QUIT!"\n'; exit 130; }
+  input="${input//[^A-Z23]}"
+
+  for ((i=0; i<${#input}; i++)); do
+    if [[ "${input:i:1}" = @(2|3) ]]; then
+      renum="${input:i:1}"
+      rechr="${input:i+1:1}"
+#      (( renum == 3 )) && rechr=( "$rechr" "$rechr" ) || rechr=( "$rechr" )
+      continue
+    fi
+  allowed+=( "${input:i:1}" ); done
+  readarray -t allowed < <(printf "%s\n" "${allowed[@]}" | sort -u)
+#  (( renum )) && allowed+=( "${rechr[@]}" )
+}
+
+
+calcyellow(){
+  yellowb=()
+  for w in "${guesses[@]^^}"; do
+    for i in {0..4}; do
+      letter="${w:i:1}"
+      # skip letters that are green in pattern
+      [[ "${pattern[i]}" == "$letter" ]] && continue
+      # skip letters that are not yellow at all
+      [[ ! " ${allowed[*]} " =~ " $letter " ]] && continue
+      # add position to yellowb for this letter
+      # see if letter already has entry
+      found=0
+      for j in "${!yellowb[@]}"; do
+        [[ "${yellowb[$j]}" == "$letter:"* ]] && {
+          pos="${yellowb[$j]#*:}"
+          pos="$pos,$((i+1))"
+          yellowb[$j]="$letter:$pos"
+          found=1
+          break
+        }
+      done
+      [[ $found -eq 0 ]] && yellowb+=( "$letter:$((i+1))" )
+    done
+  done
+}
+
+calcbanned(){
+  banned=( "${gl[@]}" )
+  for i in "${!banned[@]}"; do
+    [[ "${allowed[*]}" = *"${banned[$i]}"* ]] && unset banned[i]
+  done
+}
+
+getpattern(){
+    local prompt="$1"
+    local input
+    input="$(gum input --width=0 --prompt "$prompt ")" || exit
+
+    # uppercase everything
+    input="${input^^}"
+
+    # remove invalid characters except underscores
+    input="${input//[^A-Z_-]}"
+    input="${input//-/_}"
+
+    # build pattern array, one character at a time
+    pattern=()
+    for ((i=0; i<${#input}; i++)); do
+        pattern+=( "${input:i:1}" )
+    done
+
+    # fill missing entries with '_'
+    for ((i=${#pattern[@]}; i<5; i++)); do
+        pattern[i]='_'
+    done
+}
+
+qsort() {
+  local caseflag=0 upperflag=0 lowerflag=0
+  while [[ $1 == -* ]]; do
+    case $1 in
+      -i) caseflag=1 ;;
+      -U|--upper) upperflag=1; lowerflag=0 ;;
+      -l|--lower) lowerflag=1; upperflag=0 ;;
+      *) break ;;
+    esac
+    shift
+  done
+
+  local order='qQwWeErRtTyYoOuUiIoOpPaAsSdDfFgGhHjJkKlLzZxXcCvVbBnNmM'
+
+  awk -v o="$order" -v ci="$caseflag" -v up="$upperflag" -v low="$lowerflag" '
+  BEGIN {
+    for (i=1;i<=length(o);i++) idx[substr(o,i,1)]=i
+  }
+  {
+    key = $0
+    if (ci) key = tolower($0)
+    if (!seen[key]++) {
+      out = $0
+      if (up) out = toupper(out)
+      if (low) out = tolower(out)
+      print idx[$0], out
+    }
+  }' "$@" |
+  sort -n | cut -d" " -f2
+}
+
+prnallow(){
+ for i in "${allowed[@]}"; do
+  [[ "${pattern[*]}" != *"$i"* ]] && yellow+=( "$i" ) && printf %s%s\  "$yel" "$i" || printf %s%s\  "$gre" "$i"
+ done
+printf %s "$tput0"
+}
+
+prncolor() {
+  local arr
+  # read from stdin if no args
+  if [[ $# -eq 0 ]]; then
+    mapfile -t arr
+  else
+    arr=("$@")
+  fi
+
+  for i in "${arr[@]}"; do
+    if [[ "${pattern[*]}" != *"$i"* ]]; then
+      yellow+=( "$i" )
+      printf '%s ' "$yel$i"
+    else
+      printf '%s ' "$gre$i"
+    fi
+  done
+  printf '%s\n' "$tput0"
+}
+
+prncolor(){
+  while read -r w; do
+    local out=""
+    for ((i=0;i<${#w};i++)); do
+      c="${w:i:1}"
+      if [[ " ${pattern[*]} " == *" $c "* ]]; then
+        out+="${gre}$c${tput0}"    # green
+      elif [[ " ${allowed[*]} " == *" $c "* ]]; then
+        out+="${yel}$c${tput0}"    # yellow
+      else
+        (( choose )) && out+="$ltgr$c$tput0" || out+="$c"                  # default
+      fi
+    done
+    printf '%s\n' "$out"
+  done
+}
+
+valid() {
+    w="$1"
+    # uppercase everything before checking
+    w="${w^^}"  # converts whole word to uppercase
+
+    # length check
+    [[ ${#w} -ne 5 ]] && return 1
+
+    # pattern check
+    for i in {0..4}; do
+
+      [[ "${pattern[i]}" != "_" && "${pattern[i]}" != "${w:i:1}" ]] && return 1
+    done
+
+  for y in "${yellowb[@]}"; do
+    IFS=: read -r letter badpos <<< "$y"
+    [[ ! "$w" =~ $letter ]] && return 1
+    for p in ${badpos//,/ }; do
+        [[ "${w:$((p-1)):1}" == "$letter" ]] && return 1
+    done
+  done
+
+    # banned letters
+    for b in "${banned[@]}"; do
+        [[ "$w" =~ [${b}] ]] && return 1
+    done
+
+    return 0
+}
+
+searchdic() {
+  local ans
+  local dics=( /usr/share/dict/american-english )
+  ## assumes that /usr/share/dict/american-english = /usr/share/dict/words
+
+  local moredics=( /usr/share/dict/american-english-huge
+                  /usr/share/dict/american-english-missing
+                )
+
+  ## remove unreadable entries
+  for i in "${!moredics[@]}"; do
+    [[ ! -r "${moredics[$i]}" ]] && unset moredics[i]
+  done
+  ## compact array to remove holes
+  moredics=( "${moredics[@]}" )
+
+  (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
+
+  (( huge  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
+                                       dics=( "${moredics[@]}" ); }
+
+  (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
+
+  while ! (( ${#newguesses[@]} )); do
+    for dic in "${dics[@]}"; do
+      (( verbose )) && printf 'Searching dictionary: %s\n' "$dic" >&2
+      if [[ -r "$dic" ]]; then
+        readarray -t newguesses < <(
+          while read -r w; do
+            (( lower )) && [[ "$w" =~ [A-Z] ]] && continue
+            w="${w^^}" # uppercase
+            valid "$w" && [[ "$w" != *\'* ]] && printf '%s\n' "$w"
+          done < "$dic"
+        )
+        (( ${#newguesses[@]} )) && return 0
+      fi
+    done
+    (( huge )) &&  ## if $huge=1 then "${dics[@]}" already had "$moredics" on first run
+       break       ## (the dic jokes write themselves)
+
+    # nothing found, ask about huge
+    if (( "${#moredics[@]}" )); then
+      while ! { (( huge )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
+        printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
+        read -rp "Search expanded dictionaries? [Y/n] " ans
+        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && huge=2
+      done
+      [[ "$ans" =~ [nN] ]] && break 2
+      if (( huge )); then
+         printf '\nSearching additional dictionary/dictionaries:\n%s\n\n' "$(printf \ %s\\n "${moredics[@]}")"
+        dics=( "${moredics[@]}" )  ## we've already searched what was in "${dic[@]}" once, remove them
+      fi
+    fi
+  done
+}
+
+
+
+searchdic(){
+  local ans
+
+  ## remove unreadable entries
+  for i in "${!moredics[@]}"; do
+    [[ ! -r "${moredics[$i]}" ]] && unset moredics[i]
+  done
+  ## compact array to remove holes
+  moredics=( "${moredics[@]}" )
+
+  (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
+
+  (( huge  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
+                                       dics=( "${moredics[@]}" ); }
+
+  (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
+
+  while ! (( ${#newguesses[@]} )); do
+    for dic in "${dics[@]}"; do
+      (( verbose )) && printf 'Searching dictionary: %s\n' "$dic" >&2
+      if [[ -r "$dic" ]]; then
+        readarray -t newguesses < <(
+        filterwords "$dic"
+        )
+        (( ${#newguesses[@]} )) && return 0
+      fi
+    done
+    (( huge )) &&  ## if $huge=1 then "${dics[@]}" already had "$moredics" on first run
+       break       ## (the dic jokes write themselves)
+
+    # nothing found, ask about huge
+    if (( "${#moredics[@]}" )); then
+      while ! { (( huge )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
+        printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
+        read -rp "Search expanded dictionaries? [Y/n] " ans
+        [[ ! "$ans" || "$ans" =~ ^[yY] ]] && huge=2
+      done
+      [[ "$ans" =~ [nN] ]] && break 2
+      if (( huge )); then
+         printf '\nSearching additional dictionary/dictionaries:\n%s\n\n' "$(printf \ %s\\n "${moredics[@]}")"
+        dics=( "${moredics[@]}" )  ## we've already searched what was in "${dic[@]}" once, remove them
+      fi
+    fi
+  done
+}
+
+
+
+
+
+# globals used by these helpers:
+# pattern[]  - length 5, "_" for unknowns (may be upper or lower)
+# banned[]   - array of letters to exclude (may be upper or lower)
+# yellowb[]  - entries like "i:1,3" (letter:comma-separated bad positions)
+# upper  - if set to 1: add -i to grep (case-insensitive); default 0
+
+# Result globals:
+# base        -> the built regex (lowercase)
+# required -> array of letters that must be present somewhere (lowercase)
+
+buildbase() {
+  local b lc ch idx p allowed letter badpos
+  letters=abcdefghijklmnopqrstuvwxyz
+
+  # concat banned letters lowercase
+  lc=""
+  for b in "${banned[@]}"; do lc+="${b,,}"; done
+
+  # build allowed letters = a..z minus banned
+  allowed=""
+  for ((idx=0; idx<${#letters}; idx++)); do
+    ch=${letters:idx:1}
+    case "$lc" in
+      *"$ch"*) ;;    # banned -> skip
+      *) allowed+="$ch";;
+    esac
+  done
+
+  # if nothing allowed, make base match nothing
+  if [[ -z $allowed ]]; then
+    base='^$'
+    required=()
+    return 0
+  fi
+
+  # init per-position allowed string (no brackets yet)
+  local posallowed
+  for ((idx=0; idx<5; idx++)); do
+    if [[ "${pattern[idx]}" != "_" ]]; then
+      posallowed[idx]="${pattern[idx],,}"  # fixed literal, lowercase
+    else
+      posallowed[idx]="$allowed"
+    fi
+  done
+
+  # process yellowb: collect must-contains, and remove the letter from banned slots
+  required=()
+  for b in "${yellowb[@]}"; do
+    IFS=: read -r letter badpos <<< "$b"
+    letter="${letter,,}"
+    # record must contain (uniquify later)
+    required+=("$letter")
+    for p in ${badpos//,/ }; do
+      idx=$((p-1))
+      # remove letter from posallowed[idx] (if that slot is not a fixed letter)
+      if [[ "${pattern[idx]}" == "_" ]]; then
+        posallowed[idx]="${posallowed[idx]//${letter}/}"
+      fi
+    done
+  done
+
+  # uniquify required (small array)
+  if ((${#required[@]})); then
+    local seen
+    local uniq=()
+    for letter in "${required[@]}"; do
+      if [[ ! " ${seen} " == *" ${letter} "* ]]; then
+        uniq+=("$letter")
+        seen+="${letter} "
+      fi
+    done
+    required=("${uniq[@]}")
+  fi
+
+  # build final slot regex pieces and assemble base
+  local slot re=""
+  for ((idx=0; idx<5; idx++)); do
+    if [[ "${pattern[idx]}" != "_" ]]; then
+      re+="${pattern[idx],,}"
+    else
+      # if posallowed[idx] ended up empty, make a class that matches nothing
+      if [[ -z ${posallowed[idx]} ]]; then
+        base='^$'   # no candidates possible
+        return 0
+      fi
+      re+="[${posallowed[idx]}]"
+    fi
+  done
+
+  base="^${re}$"
+}
+
+# filterwords: run grep with built base, then enforce must-contains letters.
+# call: filterwords /path/to/dict
+filterwords() {
+  local pat
+  local dic=$1
+  local grepflags=""
+  (( upper )) && grepflags="-i"
+
+  if [[ -z $dic || ! -r $dic ]]; then
+    printf 'filterwords: missing or unreadable dictionary: %s\n' "${dic:-<none>}" >&2
+    return 2
+  fi
+
+  buildbase   # sets $base and required[]
+
+  # run the main grep (this will be the expensive step but it's a single grep)
+  # use -- to protect patterns that might start with -
+  local candidates
+  candidates=$(grep $grepflags -E -- "$base" "$dic") || candidates=""
+
+  # now filter the small candidate set for must-contains letters
+  # (each pass is cheap because candidate set should be small)
+  for letter in "${required[@]}"; do
+    # we grep for the letter; letter is literal single char -> safe
+    candidates=$(printf '%s\n' "$candidates" | grep $grepflags -E -- "$letter")
+  done
+
+  (( verbose )) && echo "\$renum=$renum; \$rechr=$rechr; \$candidates:" >&2
+  (( verbose )) && echo "$candidates" >&2
+
+#  if (( renum == 2 )); then
+##    candidates=$(printf '%s\n' "$candidates" | grep -E -- "${rechr,,}{${renum}}")
+#    candidates=$(printf '%s\n' "$candidates" | grep -E -- .*"${rechr,,}".*"${rechr,,}".*)
+#  elif (( renum == 3 )); then
+#    echo "in renum==3" >&2
+#    candidates=$(printf '%s\n' "$candidates" | grep -E -- .+?"${rechr,,}".+?"${rechr,,}".+?"${rechr,,}".+? )
+#  fi
+
+  if (( renum > 1 )); then
+    pat="[$letters]*"
+    for ((i=0; i<renum; i++)); do
+      pat+="${rechr,,}[$letters]*"
+    done
+    (( verbose )) && printf %s\\n "$pat" >&2
+    candidates=$(printf '%s\n' "$candidates" | grep -iE -- "$pat")
+  fi
+
+  # print final results
+  if [[ -n $candidates ]]; then
+    printf '%s\n' "$candidates"
+    return 0
+  fi
+  return 1
+}
+
+cksubset(){
+  local subset=("${!1}")
+  local superset=("${!2}")
+  local x found
+  errorset=()   # global array to collect bad letters
+
+#  (( ${#subset[@]} == 1 )) &&
+  [[ "$subset" = "" ]] && return 0
+
+  for x in "${subset[@]}"; do
+    [[ $x = '_' ]] && continue   # ignore placeholder
+    [[ " ${superset[*]} " = *" $x "* ]] || errorset+=( "$x" )
+  done
+
+  (( ${#errorset[@]} )) && return 1 || return 0
+}
+
+
+(( verbose )) && { printf 'clioptions:\n'; printf %s\\n "$@"; }
+
+shopt -s extglob
+while (( $# )); do
+ ##[[ "$1" =~ ^-[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]{2,}$ ]]
+ [[ "$1" =~ ^-[a-zA-Z0-9]{2,}$ ]] && { one="-${1:1:1}" two="-${1:2}" && therest=( "${@:2}" )
+                                 set -- "$one" "$two" "${therest[@]}"; }
+# [[ "$1" = @(-c|--count) ]] && { count=1; shift; continue; }
+ [[ "$1" = @(-m|--more|-h|--huge) ]] && { huge=1; shift; continue; }  #default to using moredics
+ [[ "$1" =~ ^[a-Z]{5}$ ]] && { guesses+=( "${1^^}" ); shift; continue; }
+ [[ "$1" = @(-l|--lower) ]] && { lower=1; shift; continue; }  #default behavior, remove cli option?
+ [[ "$1" = @(-u|--upper) ]] && { upper=1; shift; continue; }
+ [[ "$1" = @(-n|--noguess) ]] && { noguess=1; shift; continue; }
+ [[ "$1" = @(-r|--recycle) ]] && { recycle=1; shift; continue; }
+ [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
+ { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
+done
+
+! (( noguess )) && { guessedwords "Enter space-delimited guesses:" || exit; }
+
+usedletters
+
+getallowed "Enter ${gre}green${tput0} and ${yel}allowed${tput0} letters:" "allowed" || exit
+
+if ! cksubset allowed[@] gl[@]; then
+  printf '[%sWARN%s] Bad input: allowed contains letters not in provided guesses: %s\n' "$yel" "$tput0" "${errorset[*]}"
+#  exit 1
+fi
+
+calcbanned
+
+(( verbose )) && {
+printf 'Guessed letters (${gl[@]}):\n'
+printf %s\\n "${gl[*]}"
+printf 'Allowed letters (${allowed[*]}):\n %s\n' "${allowed[*]}"
+printf 'Banned letters ($[banned[*]}):\n %s\n' "${banned[*]}"
+read -rp "--pause--"
+}
+
+# pattern; green letters (use _ for unknowns)
+getpattern "Enter pattern using _ or - for unknowns:" "pattern"
+
+if ! cksubset pattern[@] allowed[@]; then
+  echo "bad input: pattern contains letters not in allowed: ${errorset[*]}"
+  exit 1
+fi
+
+calcyellow
+
+printf 'Disallowed positions: %s\n' "${yellowb[*]}"
+
+printf 'Guessed words: %s\n' "${guesses[*]}"|prncolor
+#printf 'Pattern: %s\n' "${pattern[*]}"
+printf 'Pattern: '
+for i in "${pattern[@]}"; do
+   [[ "$i" =~ [[:alpha:]] ]] && printf %s%s%s\  "$gre" "$i" "$tput0" || printf %s\  "$i"
+done
+printf \\n
+
+#printf 'Allowed letters: %s\n' "${allowed[*]}"
+printf 'Allowed letters: %s\n' "$(prnallow)"
+
+(( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
+# yellow letters with forbidden positions
+# format: letter:positions (1-based comma-separated)
+#yellow=("S:1" "A:2" "P:3")
+#yellow=("N:4")
+
+# banned letters
+banned=( "${banned[@]^^}" )
+
+# function to check if word passes constraints
+
+#filterwords /usr/share/dict/words
+
+searchdic
+readarray -t newguesses < <(printf '%s\n' "${newguesses[@]}" | sed '/^$/d' | sort -u)
+gscunt="${#newguesses[@]}"
+
+(( verbose )) && read -rp "choose=$choose gscunt=$gscunt recycle=$recycle lower=$lower"
+
+newguesses=( "${newguesses[@]^^}" )
+if (( choose && gscunt > 1 )); then
+  printf %s\\n "${newguesses[@]}"|prncolor
+# choice="$(gum choose "${newguesses[@]}")"
+##  read -rp "$choice ${#newguesses[@]} ${newguesses[*]}"
+#  newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor)" )
+#  newguesses=( "$(gum choose --height=0 --cursor.foreground="11" --selected.foreground="76" "${newguesses[@]}")" ) || exit
+    newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
+    [[ "$newguesses" = "user aborted" ]] && exit 130
+# newguesses=( "$(gum choose "$(printf %s\\n "${newguesses[@]}"|prncolor)")" )
+# newguesses=( "$choice" )
+##  read -rp "$choice ${#newguesses[@]} ${newguesses[*]}"
+  gscunt="${#newguesses[@]}"
+
+else
+  printf %s\\n "${newguesses[@]}"|prncolor
+fi
+#(( count )) && printf 'The number of possible words is %s.\n' "${#newguesses[@]}"
+(( choose && ${#newguesses[@]} == 1 )) && printf 'The selected word: %s%s\n' "$(printf %s\\n "$newguesses"|prncolor)" "$tput0" ||
+#(( choose )) && printf 'The selected word: %s%s%s\n' "$red" "$newguesses" "$tput0" ||
+                printf 'The number of possible words is %s.\n' "$gscunt"
+(( verbose )) && printf 'new guesses: .%s.\n' "${newguesses[@]}"|tail -n 40
+(( verbose && gscunt > 40 )) && printf 'NB: list of .guesses. truncated at 40\n'
+
+if (( gscunt == 1 )); then
+  if (( recycle )) || (( confirm )); then
+    guesses+=( "$newguesses" )
+    execcmd=( "$0" -n -r "${guesses[@]}" )
+    (( lower )) && execcmd+=( --lower )
+    (( huge == 1 )) && execcmd+=( --huge )
+    (( choose )) && execcmd+=( --choose )
+#    exec "$0" -n "${guesses[@]}"
+   printf '\n\nNew guess count is 1.\nRESTARTING %s with additional guess %s%s%s\n\n' "$0" "$red" "$newguesses" "$tput0"
+    exec "${execcmd[@]}"
+  fi
+fi
+
+exit
+
+
+
+
+
+
+
