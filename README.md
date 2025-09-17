@@ -9,7 +9,8 @@ It builds a regex search based on known information (green/yellow/gray letters, 
 CLI usage: $ wordle [OPTIONS] [GUESSES...]
 
 Options:
-  -m, --more, --huge         Always larger/additional dictionaries (defined by $moredics in script)
+  -m, --more, --huge         Always seach larger/additional dictionaries
+                             (defined by $moredics in script)
   -l, --lower                Match only lowercase words in dictionaries (default behavior)
   -u, --upper                Match words containing uppercase letters in dictionaries
   -n, --noguess              Skip entering a new guess

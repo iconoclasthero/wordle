@@ -1,16 +1,21 @@
 #!/bin/bash
 
+## ADJUST SCRIPT VARIABLES AS NECESSARY:
+
+defaults=( -ncr intro deals )
+
+moredics=( /usr/share/dict/american-english-huge
+           /usr/share/dict/american-english-missing   ## assumes this is user-specified-words dictionary
+          )
+
+dics=( /usr/share/dict/american-english )
+ ## assumes that /usr/share/dict/american-english = /usr/share/dict/words
+
 red="$(tput setaf 9)"
 gre="$(tput setaf 76)"
 yel="$(tput setaf 11)"
 ltgr="$(tput setaf 7)"
 tput0="$(tput sgr0)"
-#dic="/usr/share/dict/words"
-dics=( /usr/share/dict/american-english )
- ## assumes that /usr/share/dict/american-english = /usr/share/dict/words
-moredics=( /usr/share/dict/american-english-huge
-           /usr/share/dict/american-english-missing   ## assumes this is user-specified-words dictionary
-          )
 
 . /usr/local/bin/editscript
 
@@ -29,25 +34,31 @@ showhelp() {
 Usage: wordle [OPTIONS] [GUESSES...]
 
 Options:
-  -m, --more, --huge         Always larger/additional dictionaries (defined by \$moredics in script)
+  -m, --more, --huge         Always seach larger/additional dictionaries
+                             (defined by \$moredics in script)
   -l, --lower                Match only lowercase words in dictionaries (default behavior)
   -u, --upper                Match words containing uppercase letters in dictionaries
   -n, --noguess              Skip entering a new guess
   -r, --recycle              Reuse a single result from last run
-  -c, --choose               Interactive candidate picker (requires gum choose)
+  -c, --choose               Interactive candidate picker (*requires gum choose)
+  -d, --default(s)           Restart wordle with \$defaults specified in script
+                             (e.g., \`wordle -ncr intro deals\`)
   -h, --help                 Show this message and exit
   [GUESSES...]               One or more 5-letter words to seed guesses
 
 Examples:
   wordle
-  wordle -u
+  wordle -u -c
   wordle CRANE
-  wordle -r -c
+  wordle -ncr intro deals
 
 Usage:
   ${gre}Green${tput0}/${yel}allowed${tput0} letters and pattern are case insenstive.
   Specify double/triple letters by prefixing letter with 2/3, e.g., 2t2eh will result in
   a dictionary search requiring "TTEEH" **all** be included in the word > "TEETH" results.
+
+
+* https://github.com/charmbracelet/gum
 
 EOF
 
@@ -548,6 +559,7 @@ while (( $# )); do
  [[ "$1" = @(-r|--recycle) ]] && { recycle=1; shift; continue; }
  [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
  [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
+ [[ "$1" = @(-d|--defalut@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
  { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
 done
 
