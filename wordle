@@ -593,7 +593,6 @@ calcbanned
   read -rp "--pause--"
 }
 
-# pattern; green letters (use _ for unknowns)
 getpattern "Enter pattern using _ or - for unknowns:" "pattern"
 
 if ! cksubset pattern[@] allowed[@]; then
@@ -610,13 +609,11 @@ for i in "${pattern[@]}"; do
 done
 printf \\n
 
-printf 'Allowed letters: %s\n' "$(prnallow)"
-printf 'Disallowed positions: %s\n' "${yellowb[*]}"
-
-(( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
-
-# banned letters
 banned=( "${banned[@]^^}" )
+
+printf 'Allowed letters: %s\n' "$(prnallow)"
+(( renum )) && { printf '%sDuplicate letter: %s %s'\''s.%s\n' "$red" "$renum" "$rechr" "$tput0"; }
+printf 'Disallowed positions: %s\n' "${yellowb[*]}"
 
 searchdic
 readarray -t newguesses < <(printf '%s\n' "${newguesses[@]}" | sed '/^$/d' | sort -u)
