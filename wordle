@@ -547,8 +547,8 @@ gscunt="${#newguesses[@]}"
 newguesses=( "${newguesses[@]^^}" )
 if (( choose && gscunt > 1 )); then
   printf '\nCandidate list:\n%s\n\n' "$(printf '  %s\n' "${newguesses[@]}"|prncolor)"
-    newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --header="Select from candidates:" --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
-    [[ "$newguesses" = "user aborted" ]] && exit 130
+    newguesses=( "$(printf %s\\n "${newguesses[@]}"|prncolor|gum choose --header="Select from candidates:" --header.foreground="33" --height=15 --cursor.foreground="76" --selected.foreground="7" | sed -E 's/\x1b(\[[0-9;]*[A-Za-z]|[()#][A-Za-z]|=|>)//g')" ) || exit
+    [[ "${newguesses[*]}" = "user aborted" ]] && exit 130
   gscunt="${#newguesses[@]}"
 
 else
