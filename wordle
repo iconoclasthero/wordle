@@ -16,7 +16,8 @@ gre="$(tput setaf 76)"
 yel="$(tput setaf 11)"
 ltgr="$(tput setaf 7)"
 tput0="$(tput sgr0)"
-numletters=5
+
+: "${numletters:=5}"
 
 . /usr/local/bin/editscript
 
@@ -114,7 +115,8 @@ getallowed(){
 calcyellow(){
   yellowb=()
   for w in "${guesses[@]^^}"; do
-    for i in {0..4}; do
+#   for i in {0..4}; do
+    for ((i=0; i<"$numletters"; i++)); do
       letter="${w:i:1}"
       # skip letters that are green in pattern
       [[ "${pattern[i]}" == "$letter" ]] && continue
@@ -400,8 +402,8 @@ valid() {
     (( ${#w} != numletters )) && return 1
 
     # pattern check
-    for i in {0..4}; do
-
+#    for i in {0..4}; do
+    for (( i=0; i<"$numletters"; i++)); do
       [[ "${pattern[i]}" != "_" && "${pattern[i]}" != "${w:i:1}" ]] && return 1
     done
 
@@ -483,6 +485,7 @@ while (( $# )); do
  [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
  [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
  [[ "$1" = @(-l|--letters) && "$2" =~ ^[0-9]$ ]] && { numletters="$2"; shift 2; continue; }
+ [[ "$1" = @(-l|--letters) ]] && { numletters="5"; shift; continue; }
 #[[ "$1" = @(-d|--defauLt@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
  [[ "$1" = @(-d|--default@(|s)) ]] && { shift; set -- "${defaults[@]}" "$@"; continue; }
  [[ "$1" = @(-v|--verbose) ]] && { verbose=1; shift; continue; }
@@ -565,7 +568,7 @@ fi
 if (( gscunt == 1 )); then
   if (( recycle )) || (( confirm )); then
     guesses+=( "$newguesses" )
-    execcmd=( "$0" -n -r "${guesses[@]}" )
+    execcmd=( "$0" -l "$numletters" -n -r "${guesses[@]}" )
     (( lower )) && execcmd+=( --lower )
     (( more == 1 )) && execcmd+=( --more )
     (( choose )) && execcmd+=( --choose )

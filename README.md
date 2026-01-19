@@ -11,11 +11,12 @@ CLI usage: $ wordle [OPTIONS] [GUESSES...]
 Options:
   -m, --more, --huge         Always seach larger/additional dictionaries
                              (defined by $moredics in script)
-  -l, --lower                Match only lowercase words in dictionaries (default behavior)
+  -L, --lower                Match only lowercase words in dictionaries (default behavior)
   -u, --upper                Match words containing uppercase letters in dictionaries
   -n, --noguess              Skip entering a new guess
   -r, --recycle              Reuse a single result from last run (usually paired with --choose)
   -c, --choose               Interactive candidate picker (*requires gum choose)
+  -l, --letters <#>          Change from default 5-letter wordle to # letters
   -h, --help                 Show this message and exit
   [GUESSES...]               One or more 5-letter words to seed guesses
 
