@@ -241,7 +241,7 @@ searchdic(){
 # base        -> the built regex (lowercase)
 # required -> array of letters that must be present somewhere (lowercase)
 
-buldbase() {
+buildbase() {
   local b lc ch idx p allowed letter badpos
   letters=abcdefghijklmnopqrstuvwxyz
 
