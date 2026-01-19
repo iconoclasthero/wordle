@@ -5,7 +5,7 @@ It builds a regex search based on known information (green/yellow/gray letters, 
 
 ## Usage
 
-```sh
+```
 CLI usage: $ wordle [OPTIONS] [GUESSES...]
 
 Options:
