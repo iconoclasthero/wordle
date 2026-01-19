@@ -17,6 +17,7 @@ Options:
   -r, --recycle              Reuse a single result from last run (usually paired with --choose)
   -c, --choose               Interactive candidate picker (*requires gum choose)
   -l, --letters <#>          Change from default 5-letter wordle to # letters
+  -z, --worzle               Choose a 6-letter worzle puzzle
   -h, --help                 Show this message and exit
   [GUESSES...]               One or more 5-letter words to seed guesses
 
