@@ -16,6 +16,7 @@ gre="$(tput setaf 76)"
 yel="$(tput setaf 11)"
 ltgr="$(tput setaf 7)"
 tput0="$(tput sgr0)"
+numletters=5
 
 . /usr/local/bin/editscript
 
@@ -37,13 +38,14 @@ Options:
   -m, --more, --huge         Always seach larger/additional dictionaries
                              (defined by \$moredics in script)
   --more=/path/to/dic        Add /path/to/dic and always search additional dictionaries
-  -l, --lower                Match only lowercase words in dictionaries (default behavior)
+  -L, --lower                Match only lowercase words in dictionaries (default behavior)
   -u, --upper                Match words containing uppercase letters in dictionaries
   -n, --noguess              Skip entering a new guess
   -r, --recycle              Reuse a single result from last run
   -c, --choose               Interactive candidate picker (*requires gum choose)
   -d, --default(s)           Restart wordle with \$defaults specified in script
                              (e.g., \`wordle -ncr intro deals\`)
+  -l, --letters <#>          Change from default 5-letter wordle to # letters
   -h, --help                 Show this message and exit
   [GUESSES...]               One or more 5-letter words to seed guesses
 
@@ -74,7 +76,7 @@ guessedwords(){
   read -r -a temp <<< "${input^^}"
   guesses+=( "${temp[@]}" )
   for (( i=0; i<"${#guesses[@]}"; i++ )); do
-    [[ "${guesses[$i]}" =~ ^[[:alpha:]]{5}$ ]] || unset 'guesses[i]'
+    [[ "${guesses[$i]}" =~ ^[[:alpha:]]{$numletters}$ ]] || unset 'guesses[i]'
   done
 }
 
@@ -100,12 +102,12 @@ getallowed(){
     if [[ "${input:i:1}" = @(2|3) ]]; then
       renum="${input:i:1}"
       rechr="${input:i+1:1}"
-#      (( renum == 3 )) && rechr=( "$rechr" "$rechr" ) || rechr=( "$rechr" )
+#     (( renum == 3 )) && rechr=( "$rechr" "$rechr" ) || rechr=( "$rechr" )
       continue
     fi
   allowed+=( "${input:i:1}" ); done
   readarray -t allowed < <(printf "%s\n" "${allowed[@]}" | sort -u)
-#  (( renum )) && allowed+=( "${rechr[@]}" )
+# (( renum )) && allowed+=( "${rechr[@]}" )
 }
 
 
@@ -157,12 +159,12 @@ getpattern(){
     # build pattern array, one character at a time
     pattern=()
     for ((i=0; i<${#input}; i++)); do
-        pattern+=( "${input:i:1}" )
+      pattern+=( "${input:i:1}" )
     done
 
     # fill missing entries with '_'
-    for ((i=${#pattern[@]}; i<5; i++)); do
-        pattern[i]='_'
+    for ((i=${#pattern[@]}; i<numletters; i++)); do
+      pattern[i]='_'
     done
 }
 
@@ -239,7 +241,7 @@ searchdic(){
 # base        -> the built regex (lowercase)
 # required -> array of letters that must be present somewhere (lowercase)
 
-buildbase() {
+buldbase() {
   local b lc ch idx p allowed letter badpos
   letters=abcdefghijklmnopqrstuvwxyz
 
@@ -266,7 +268,7 @@ buildbase() {
 
   # init per-position allowed string (no brackets yet)
   local posallowed
-  for ((idx=0; idx<5; idx++)); do
+  for ((idx=0; idx<numletters; idx++)); do
     if [[ "${pattern[idx]}" != "_" ]]; then
       posallowed[idx]="${pattern[idx],,}"  # fixed literal, lowercase
     else
@@ -305,7 +307,7 @@ buildbase() {
 
   # build final slot regex pieces and assemble base
   local slot re=""
-  for ((idx=0; idx<5; idx++)); do
+  for ((idx=0; idx<numletters; idx++)); do
     if [[ "${pattern[idx]}" != "_" ]]; then
       re+="${pattern[idx],,}"
     else
@@ -395,7 +397,7 @@ valid() {
     w="${w^^}"  # converts whole word to uppercase
 
     # length check
-    [[ ${#w} -ne 5 ]] && return 1
+    (( ${#w} != numletters )) && return 1
 
     # pattern check
     for i in {0..4}; do
@@ -473,14 +475,15 @@ while (( $# )); do
 
  [[ "$1" = @(--more|--huge)=* ]] && { more=1; clidic="${1#*=}"; [[ -r "$clidic" ]] && moredics+=("$clidic"); shift; continue; }
  [[ "$1" = @(-m|--more|--huge) ]] && { more=1; shift; continue; }  #default to using moredics
- [[ "$1" =~ ^[a-Z]{5}$ ]] && { guesses+=( "${1^^}" ); shift; continue; }
- [[ "$1" = @(-l|--lower) ]] && { lower=1; shift; continue; }  #default behavior, remove cli option?
+ [[ "$1" =~ ^[a-Z]{$numletters}$ ]] && { guesses+=( "${1^^}" ); shift; continue; }
+#[[ "$1" = @(-L|--lower) ]] && { lower=1; shift; continue; }  #default behavior, remove cli option?
  [[ "$1" = @(-u|--upper) ]] && { upper=1; shift; continue; }
  [[ "$1" = @(-n|--noguess) ]] && { noguess=1; shift; continue; }
  [[ "$1" = @(-r|--recycle) ]] && { recycle=1; shift; continue; }
  [[ "$1" = @(-c|--choose) ]] && { choose=1; shift; continue; }
  [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
-# [[ "$1" = @(-d|--defauLt@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
+ [[ "$1" = @(-l|--letters) && "$2" =~ ^[0-9]$ ]] && { numletters="$2"; shift 2; continue; }
+#[[ "$1" = @(-d|--defauLt@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
  [[ "$1" = @(-d|--default@(|s)) ]] && { shift; set -- "${defaults[@]}" "$@"; continue; }
  [[ "$1" = @(-v|--verbose) ]] && { verbose=1; shift; continue; }
  { printf 'Discarding invalid cli parameter %s\n' "$1"; shift; }
