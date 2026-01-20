@@ -487,7 +487,7 @@ while (( $# )); do
  [[ "$1" = @(-h|--help) ]] && { showhelp; shift; exit; }
  [[ "$1" = @(-l|--letters) && "$2" =~ ^[0-9]$ ]] && { numletters="$2"; shift 2; continue; }
  [[ "$1" = @(-l|--letters) ]] && { numletters="5"; shift; continue; }
- [[ "$1" = @(-z|--worzle) ]] && { maxlstters="6"; shift; continue; }
+ [[ "$1" = @(-z|--worzle) ]] && { numletters="6"; shift; continue; }
 #[[ "$1" = @(-d|--defauLt@(|s)) ]] && { exec wordle "${defaults[@]}"; shift; exit; }
  [[ "$1" = @(-d|--default@(|s)) ]] && { shift; set -- "${defaults[@]}" "$@"; continue; }
  [[ "$1" = @(-v|--verbose) ]] && { verbose=1; shift; continue; }
