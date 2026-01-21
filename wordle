@@ -71,6 +71,41 @@ exit
 
 }
 
+checkdics(){
+#  for (( i="${#moredics[@]}"-1; i>=0; i-- )); do
+  for i in "${!moredics[@]}"; do
+    (( verbose )) && printf '#moredics[@]: %s\n' "${#moredics[@]}"
+    [[ ! -r "${moredics[i]}" ]] &&
+       { (( verbose )) && printf '[%s] ' "$i";
+         printf 'Error: "%s" not found! Removing as additional dictionary.\n' "${moredics[i]}";
+         unset moredics[i]; } ||
+       { (( verbose )) && printf '[%s] %s is readable.\n' "$i" "${moredics[i]}"; }
+  done
+
+#  for (( i="${#dics[@]}"-1; i>=0; i-- )); do
+  for i in "${!dics[@]}"; do
+    (( verbose )) && printf '#dics[@]: %s\n' "${#dics[@]}"
+    [[ ! -r "${dics[$i]}" ]] &&
+       { (( verbose )) && printf '[%s] ' "$i";
+         printf 'Error: "%s" not found! Removing a primary dictionary.\n' "${dics[i]}";
+         unset dics[i]; } ||
+       { (( verbose )) && printf '[%s] %s is readable.\n' "$i" "${dics[i]}"; }
+  done
+
+  moredics=( "${moredics[@]}" )
+  dics=( "${dics[@]}" )
+
+  if (( ! ( "${#moredics[@]}" + "${#dics[@]}" ) )); then
+     printf 'There are no valid dictionaries available to read for guesses.  Investigate. (exit 1)\n'
+     exit 1
+  elif (( verbose )); then
+    (( "${#dics[@]}" )) && printf 'Primary dictionary:\n %s\n' "$(printf %s\\n "${dics[@]}")"
+    (( "${#moredics[@]}" )) && printf 'Additional dictionaries:\n %s\n' "$(printf %s\\n "${moredics[@]}")"
+    (( ! "${#moredics[@]}" )) && printf 'No additional dictionaries available.\n'
+  fi
+
+}
+
 guessedwords(){
   local prompt="${1:-Enter guesses (space-delimited):}";
   local input;
@@ -189,18 +224,18 @@ prncolor(){
 }
 
 searchdic(){
-  local ans
+  local ans count
 
-  ## remove unreadable entries
-  for i in "${!moredics[@]}"; do
-    [[ ! -r "${moredics[$i]}" ]] && unset 'moredics[i]'
-  done
-  ## compact array to remove holes
-  moredics=( "${moredics[@]}" )
+#  ## remove unreadable entries
+#  for i in "${!moredics[@]}"; do
+#    [[ ! -r "${moredics[$i]}" ]] && unset 'moredics[i]'
+#  done
+#  ## compact array to remove holes
+#  moredics=( "${moredics[@]}" )
 
   (( verbose )) && printf '${moredics[@]}:\n%s\n' "$(printf %s\\n "${moredics[@]}")"
 
-  (( more  && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
+  (( more && "${#moredics[@]}" )) && { printf 'Using the american-english-huge dictionary.\n';
                                        dics=( "${moredics[@]}" ); }
 
   (( verbose )) && printf '${dics[@]}:\n%s\n' "$(printf %s\\n "${dics[@]}")"
@@ -213,15 +248,17 @@ searchdic(){
         filterwords "$dic"
         )
         (( ${#newguesses[@]} )) && return 0
+
+        (( count++ ))
+        (( count > 10 )) && return 1
       fi
     done
     (( more )) &&  ## if $more=1 then "${dics[@]}" already had "$moredics" on first run
        break       ## (the dic jokes write themselves)
-
     # nothing found, ask about more
     if (( "${#moredics[@]}" )); then
       while ! { (( more )) || [[ "$ans" =~ ^[yYnN]$ ]]; }; do
-        printf '\n%sNo Matches in base dictionaries.%s\n' "$red" "$tput0"
+        printf '\n%sNo matches in base dictionaries.%s\n' "$red" "$tput0"
         read -rp "Search expanded dictionaries? [Y/n] " ans
         [[ ! "$ans" || "$ans" =~ ^[yY] ]] && more=2
       done
@@ -501,6 +538,7 @@ done
 #  { unset recycle; printf '--recycle flag selected but without new guesses or choose available.\n'
 #                   printf 'The recycle option will be disabled.\n'; }
 
+checkdics
 
 ! (( noguess )) && { guessedwords "Enter space-delimited guesses:" || exit; }
 
